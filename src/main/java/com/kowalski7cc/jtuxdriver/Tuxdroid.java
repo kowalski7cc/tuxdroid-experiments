@@ -28,8 +28,9 @@ import org.hid4java.event.HidServicesEvent;
 public class Tuxdroid {
 
     private AtomicReference<HidDevice> device;
-    private Runnable connectedCallback = () -> {};
-    private Runnable disconnectedCallback = () -> {};
+    private Runnable onConnected = () -> {};
+    private Runnable onDisconnected = () -> {};
+
     private Consumer<byte[]> eventListener = (b) -> {
     };
     private Thread readLoop = new Thread(() -> {
@@ -38,23 +39,23 @@ public class Tuxdroid {
             while (!Thread.interrupted()) {
                 if (device.get() == null) {
                     synchronized (device) {
-                        System.out.println("loop standby");
                         device.wait();
+                        
                     }
+                    device.get().open();
                 }
                 if (device.get().isOpen()){
                     try {
                         device.get().write(USBDefines.STATUS, USBDefines.PACKET_LENGTH, (byte) 0);
                         device.get().read(data, 1000);
                         eventListener.accept(data);
+                        synchronized(device) {
+                            device.notifyAll();
+                        }
                     } catch(NullPointerException e) {
-                        // Device disconnected
-                        System.out.println("OWO");
                     }                   
-                } else {
-                    device.get().open();
                 }
-                Thread.sleep(150);
+                Thread.sleep(300);
             }
         } catch (InterruptedException e) {
             System.out.println("loop interrupted");
@@ -80,7 +81,7 @@ public class Tuxdroid {
                     synchronized (device) {
                         device.set(null);
                         device.notifyAll();
-                        disconnectedCallback.run();
+                        onDisconnected.run();
                     }
                 }
             }
@@ -91,7 +92,7 @@ public class Tuxdroid {
                     synchronized (device) {
                         device.set(event.getHidDevice());
                         device.notifyAll();
-                        connectedCallback.run();
+                        onConnected.run();
                     }
                 }
             }
@@ -102,24 +103,6 @@ public class Tuxdroid {
                 .ifPresent(found -> device.set(found));
 
         readLoop.start();
-    }
-
-    public void waitForDevice() {
-        synchronized (device) {
-            try {
-                device.wait();
-            } catch (InterruptedException e) {
-            }
-        }
-    }
-
-    public void waitForDevice(int millis) {
-        synchronized (device) {
-            try {
-                device.wait(millis);
-            } catch (InterruptedException e) {
-            }
-        }
     }
 
     public void setEventListener(Consumer<byte[]> eventListener) {
@@ -140,26 +123,16 @@ public class Tuxdroid {
         return (device.get() != null) ? device.get().isOpen() : false;
     }
 
-    public void runWhenOpen(Runnable runnable) {
-        new Thread(() -> {
-            if(device.get() != null) {
-                waitForDevice();
-            }
-            while (!isDeviceOpen());
-            runnable.run();
-        }).start();
-    }
-
     public void stop() {
         readLoop.interrupt();
     }
 
-    public void setDisconnectedCallback(Runnable callback) {
-        this.disconnectedCallback = callback;
+    public void setOnDisconnected(Runnable callback) {
+        this.onDisconnected = callback;
     }
 
-    public void setConnectedCallback(Runnable callback) {
-        this.connectedCallback = callback;
+    public void setOnConnected(Runnable callback) {
+        this.onConnected = callback;
     }
 
 }

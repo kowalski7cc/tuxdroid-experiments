@@ -15,6 +15,19 @@
 
 package com.kowalski7cc.jtuxdriver;
 
+import java.io.Console;
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.List;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.Scanner;
+import java.util.Map.Entry;
+import java.util.function.Function;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
 /**
  * New
  */
@@ -23,18 +36,39 @@ public class New {
     public static void main(String[] args) throws InterruptedException {
         System.out.println("New ready");
         Tuxdroid tuxdroid = new Tuxdroid();
-        tuxdroid.setConnectedCallback(() -> {
-            tuxdroid.runWhenOpen(() -> {
-                System.out.println("Hello");
-                tuxdroid.writeRaw(new byte[] { 0, 0x41, 2, 0, 0 });
-            });
+        tuxdroid.setOnConnected(() -> {
+            System.out.println("TuxDroid Connected");
+            greet(tuxdroid);
+        });
+        tuxdroid.setOnDisconnected(() -> {
+            System.out.println("TuxDroid Connected");
         });
         tuxdroid.start();
-        tuxdroid.setEventListener(x -> System.out.println(arrayToString(x)));
-        tuxdroid.writeRaw(Command.Fux.Connection.disconnect());
-        Thread.sleep(1000);
+        // tuxdroid.setEventListener(x -> System.out.println(arrayToString(x)));
+        greet(tuxdroid);
 
-        tuxdroid.stop();
+        List<Map.Entry<String, Method>> data = new LinkedList<>();
+        for (Class<?> c : Command.class.getClasses()) {
+            for (Class<?> c1 : c.getClasses()) {
+                for (Method m : c1.getMethods()) {
+                    data.add(Map.entry(
+                            "Tuxdroid" + "-" + c.getSimpleName() + "-" + c1.getSimpleName() + "-" + m.getName(), m));
+                }
+            }
+        }
+        IntStream.range(0, data.size()).forEach(i -> System.out.println(i + ") " + data.get(i).getKey()));
+
+        try (Scanner sc = new Scanner(System.in)) {
+            data.get(sc.nextInt()).getValue().invoke(New.class, null);
+        } catch (Exception e) {
+
+        }
+
+    }
+
+    public static void greet(Tuxdroid tuxdroid) {
+        System.out.println("Hello");
+        tuxdroid.writeRaw(Command.Tux.Eyes.blink((byte) 2));
     }
 
     public static String arrayToString(byte[] data) {
@@ -58,4 +92,5 @@ public class New {
         result.append("]");
         return result.toString();
     }
+
 }
